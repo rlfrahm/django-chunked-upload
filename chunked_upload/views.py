@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from django.core.files import File
+from django.conf import settings
 
 from .settings import MAX_BYTES
 from .models import ChunkedUpload, generate_upload_id
@@ -184,7 +185,7 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             # chunked_upload = get_object_or_404(self.get_queryset(request),
             #                                    upload_id=upload_id)
             # Check for a current file
-            filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+            filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
             if not os.path.exists(os.path.dirname(filename)):
                 # try:
                 #     os.makedirs(os.path.dirname(filename))
@@ -204,7 +205,7 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             attrs.update(self.get_extra_attrs(request))
             # chunked_upload = self.create_chunked_upload(save=False, **attrs)
             upload_id = generate_upload_id()
-            filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+            filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
             if not os.path.exists(os.path.dirname(filename)):
                 try:
                     os.makedirs(os.path.dirname(filename))
@@ -310,7 +311,7 @@ class ChunkedUploadCompleteView(ChunkedUploadBaseView):
                                      detail=error_msg)
 
         # chunked_upload = get_object_or_404(self.get_queryset(request), upload_id=upload_id)
-        filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+        filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
         if not os.path.exists(os.path.dirname(filename)):
             # try:
             #     os.makedirs(os.path.dirname(filename))
