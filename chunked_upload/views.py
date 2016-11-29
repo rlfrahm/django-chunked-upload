@@ -6,7 +6,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from .settings import MAX_BYTES
-from .models import ChunkedUpload
+from .models import ChunkedUpload, generate_upload_id
 from .response import Response
 from .constants import http_status, COMPLETE
 from .exceptions import ChunkedUploadError
@@ -143,13 +143,14 @@ class ChunkedUploadView(ChunkedUploadBaseView):
         """
         Check if chunked upload has already expired or is already complete.
         """
-        if chunked_upload.expired:
-            raise ChunkedUploadError(status=http_status.HTTP_410_GONE,
-                                     detail='Upload has expired')
+        # if chunked_upload.expired:
+        #     raise ChunkedUploadError(status=http_status.HTTP_410_GONE,
+        #                              detail='Upload has expired')
         error_msg = 'Upload has already been marked as "%s"'
-        if chunked_upload.status == COMPLETE:
-            raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
-                                     detail=error_msg % 'complete')
+        # if chunked_upload.status == COMPLETE:
+        #     raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
+        #                              detail=error_msg % 'complete')
+        pass
 
     def get_response_data(self, chunked_upload, request):
         """
@@ -170,15 +171,22 @@ class ChunkedUploadView(ChunkedUploadBaseView):
 
         upload_id = request.POST.get('upload_id')
         if upload_id:
-            chunked_upload = get_object_or_404(self.get_queryset(request),
-                                               upload_id=upload_id)
-            self.is_valid_chunked_upload(chunked_upload)
+            # chunked_upload = get_object_or_404(self.get_queryset(request),
+            #                                    upload_id=upload_id)
+            # Check for a current file
+            chunked_upload_file = open('/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id), 'ab')
+            chunked_upload_file.upload_id = upload_id
+            chunked_upload_file.offset = chunked_upload_file.size
+            self.is_valid_chunked_upload(chunked_upload_file)
         else:
             attrs = {'filename': chunk.name}
             if hasattr(request, 'user') and request.user.is_authenticated():
                 attrs['user'] = request.user
             attrs.update(self.get_extra_attrs(request))
-            chunked_upload = self.create_chunked_upload(save=False, **attrs)
+            # chunked_upload = self.create_chunked_upload(save=False, **attrs)
+            chunked_upload_file = open('/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id), 'ab')
+            chunked_upload_file.offset = 0
+            chunked_upload_file.upload_id = generate_upload_id()
 
         content_range = request.META.get(self.content_range_header, '')
         match = self.content_range_pattern.match(content_range)
@@ -203,19 +211,20 @@ class ChunkedUploadView(ChunkedUploadBaseView):
                 status=http_status.HTTP_400_BAD_REQUEST,
                 detail='Size of file exceeds the limit (%s bytes)' % max_bytes
             )
-        if chunked_upload.offset != start:
-            raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
-                                     detail='Offsets do not match',
-                                     offset=chunked_upload.offset)
+        # if chunked_upload.offset != start:
+        #     raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
+        #                              detail='Offsets do not match',
+        #                              offset=chunked_upload.offset)
         if chunk.size != chunk_size:
             raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
                                      detail="File size doesn't match headers")
 
-        chunked_upload.append_chunk(chunk, chunk_size=chunk_size, save=False)
+        # chunked_upload.append_chunk(chunk, chunk_size=chunk_size, save=False)
+        chunked_upload_file.write(chunk.read())
 
         self._save(chunked_upload)
 
-        return Response(self.get_response_data(chunked_upload, request),
+        return Response(self.get_response_data(chunked_upload_file, request),
                         status=http_status.HTTP_200_OK)
 
 
