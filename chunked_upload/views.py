@@ -1,9 +1,10 @@
-import re
+import re, os
 
 from django.views.generic import View
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from django.core.files import File
 
 from .settings import MAX_BYTES
 from .models import ChunkedUpload, generate_upload_id
@@ -55,7 +56,8 @@ class ChunkedUploadBaseView(View):
         Method that calls save(). Overriding may be useful is save() needs
         special args or kwargs.
         """
-        chunked_upload.save()
+        # chunked_upload.save()
+        pass
 
     def post_save(self, chunked_upload, request, new=False):
         """
@@ -66,7 +68,8 @@ class ChunkedUploadBaseView(View):
         """
         Wraps save() method.
         """
-        new = chunked_upload.id is None
+        # new = chunked_upload.id is None
+        new = chunked_upload['offset'] > 0
         self.pre_save(chunked_upload, self.request, new=new)
         self.save(chunked_upload, self.request, new=new)
         self.post_save(chunked_upload, self.request, new=new)
@@ -156,10 +159,16 @@ class ChunkedUploadView(ChunkedUploadBaseView):
         """
         Data for the response. Should return a dictionary-like object.
         """
+        # return {
+        #     'upload_id': chunked_upload.upload_id,
+        #     'offset': chunked_upload.offset,
+        #     'expires': chunked_upload.expires_on
+        # }
         return {
-            'upload_id': chunked_upload.upload_id,
-            'offset': chunked_upload.offset,
-            'expires': chunked_upload.expires_on
+            'upload_id': chunked_upload['upload_id'],
+            'offset': chunked_upload['offset'],
+            # 'expires': chunked_upload.expires_on
+            'expires': timezone.now()
         }
 
     def _post(self, request, *args, **kwargs):
@@ -170,13 +179,23 @@ class ChunkedUploadView(ChunkedUploadBaseView):
         self.validate(request)
 
         upload_id = request.POST.get('upload_id')
+        print upload_id
         if upload_id:
             # chunked_upload = get_object_or_404(self.get_queryset(request),
             #                                    upload_id=upload_id)
             # Check for a current file
-            chunked_upload_file = open('/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id), 'ab')
-            chunked_upload_file.upload_id = upload_id
-            chunked_upload_file.offset = chunked_upload_file.size
+            filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+            if not os.path.exists(os.path.dirname(filename)):
+                # try:
+                #     os.makedirs(os.path.dirname(filename))
+                # except OSError as exc: # Guard against race condition
+                #     if exc.errno != errno.EEXIST:
+                #         raise
+                raise
+            # with open(filename, "wab") as f:
+            f = open(filename, "ab")
+            chunked_upload_file = {'file':f}
+            chunked_upload_file['upload_id'] = upload_id
             self.is_valid_chunked_upload(chunked_upload_file)
         else:
             attrs = {'filename': chunk.name}
@@ -184,9 +203,19 @@ class ChunkedUploadView(ChunkedUploadBaseView):
                 attrs['user'] = request.user
             attrs.update(self.get_extra_attrs(request))
             # chunked_upload = self.create_chunked_upload(save=False, **attrs)
-            chunked_upload_file = open('/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id), 'ab')
-            chunked_upload_file.offset = 0
-            chunked_upload_file.upload_id = generate_upload_id()
+            upload_id = generate_upload_id()
+            filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+            if not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc: # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
+            # with open(filename, "wab") as f:
+            f = open(filename, "wab")
+            chunked_upload_file = {'file': f}
+            chunked_upload_file['upload_id'] = upload_id
+            print f.tell()
 
         content_range = request.META.get(self.content_range_header, '')
         match = self.content_range_pattern.match(content_range)
@@ -220,9 +249,15 @@ class ChunkedUploadView(ChunkedUploadBaseView):
                                      detail="File size doesn't match headers")
 
         # chunked_upload.append_chunk(chunk, chunk_size=chunk_size, save=False)
-        chunked_upload_file.write(chunk.read())
+        chunked_upload_file['file'].write(chunk.read())
+        chunked_upload_file['offset'] = chunked_upload_file['file'].tell()
+        print chunk.tell()
+        print chunked_upload_file['file'].tell()
 
-        self._save(chunked_upload)
+        self._save(chunked_upload_file)
+
+        chunk.close()
+        chunked_upload_file['file'].close()
 
         return Response(self.get_response_data(chunked_upload_file, request),
                         status=http_status.HTTP_200_OK)
@@ -274,18 +309,29 @@ class ChunkedUploadCompleteView(ChunkedUploadBaseView):
             raise ChunkedUploadError(status=http_status.HTTP_400_BAD_REQUEST,
                                      detail=error_msg)
 
-        chunked_upload = get_object_or_404(self.get_queryset(request),
-                                           upload_id=upload_id)
+        # chunked_upload = get_object_or_404(self.get_queryset(request), upload_id=upload_id)
+        filename = '/Users/rlfrahm/Apps/roewithme/files/%s/%s.part' % (request.user.pk, upload_id)
+        if not os.path.exists(os.path.dirname(filename)):
+            # try:
+            #     os.makedirs(os.path.dirname(filename))
+            # except OSError as exc: # Guard against race condition
+            #     if exc.errno != errno.EEXIST:
+            #         raise
+            raise
+        # with open(filename, "wab") as f:
+        chunked_upload = {'file': open(filename, "r")}
 
         self.validate(request)
-        self.is_valid_chunked_upload(chunked_upload)
-        if self.do_md5_check:
-            self.md5_check(chunked_upload, md5)
+        # self.is_valid_chunked_upload(chunked_upload)
+        # if self.do_md5_check:
+        #     self.md5_check(chunked_upload, md5)
 
-        chunked_upload.status = COMPLETE
-        chunked_upload.completed_on = timezone.now()
+        chunked_upload['status'] = COMPLETE
+        chunked_upload['completed_on'] = timezone.now()
+        chunked_upload['offset'] = chunked_upload['file'].tell()
         self._save(chunked_upload)
-        self.on_completion(chunked_upload.get_uploaded_file(), request)
+        # self.on_completion(chunked_upload.get_uploaded_file(), request)
+        self.on_completion(File(chunked_upload['file']), request)
 
         return Response(self.get_response_data(chunked_upload, request),
                         status=http_status.HTTP_200_OK)
