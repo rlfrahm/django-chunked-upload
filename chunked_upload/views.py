@@ -194,8 +194,7 @@ class ChunkedUploadView(ChunkedUploadBaseView):
                 #         raise
                 raise
             # with open(filename, "wab") as f:
-            f = open(filename, "ab")
-            chunked_upload_file = {'file':f}
+            chunked_upload_file = {'file':open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
             self.is_valid_chunked_upload(chunked_upload_file)
         else:
@@ -206,17 +205,16 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             # chunked_upload = self.create_chunked_upload(save=False, **attrs)
             upload_id = generate_upload_id()
             filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
-            if not os.path.exists(os.path.dirname(filename)):
-                try:
-                    os.makedirs(os.path.dirname(filename))
-                except OSError as exc: # Guard against race condition
-                    if exc.errno != errno.EEXIST:
-                        raise
+            # if not os.path.exists(os.path.dirname(filename)):
+            #     try:
+            #         os.makedirs(os.path.dirname(filename))
+            #     except OSError as exc: # Guard against race condition
+            #         if exc.errno != errno.EEXIST:
+            #             raise
             # with open(filename, "wab") as f:
-            f = open(filename, "wab")
-            chunked_upload_file = {'file': f}
+            # os.makedirs(os.path.dirname(filename))
+            chunked_upload_file = {'file': open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
-            print f.tell()
 
         content_range = request.META.get(self.content_range_header, '')
         match = self.content_range_pattern.match(content_range)
