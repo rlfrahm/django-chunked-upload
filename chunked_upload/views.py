@@ -186,11 +186,12 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             # Check for a current file
             filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
             if not os.path.exists(os.path.dirname(filename)):
-                try:
-                    os.makedirs(os.path.dirname(filename))
-                except OSError as exc: # Guard against race condition
-                    if exc.errno != errno.EEXIST:
-                        raise
+                # try:
+                #     os.makedirs(os.path.dirname(filename))
+                # except OSError as exc: # Guard against race condition
+                #     if exc.errno != errno.EEXIST:
+                #         raise
+                raise
             chunked_upload_file = {'file':open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
             self.is_valid_chunked_upload(chunked_upload_file)
@@ -202,12 +203,12 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             # chunked_upload = self.create_chunked_upload(save=False, **attrs)
             upload_id = generate_upload_id()
             filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
-            # if not os.path.exists(os.path.dirname(filename)):
-            #     try:
-            #         os.makedirs(os.path.dirname(filename))
-            #     except OSError as exc: # Guard against race condition
-            #         if exc.errno != errno.EEXIST:
-            #             raise
+            if not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc: # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
             chunked_upload_file = {'file': open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
 
