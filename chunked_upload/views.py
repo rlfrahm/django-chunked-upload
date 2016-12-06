@@ -180,20 +180,17 @@ class ChunkedUploadView(ChunkedUploadBaseView):
         self.validate(request)
 
         upload_id = request.POST.get('upload_id')
-        print upload_id
         if upload_id:
             # chunked_upload = get_object_or_404(self.get_queryset(request),
             #                                    upload_id=upload_id)
             # Check for a current file
             filename = '%s%s/%s.part' % (settings.CHUNKED_UPLOAD_TEMP_PATH, request.user.pk, upload_id)
             if not os.path.exists(os.path.dirname(filename)):
-                # try:
-                #     os.makedirs(os.path.dirname(filename))
-                # except OSError as exc: # Guard against race condition
-                #     if exc.errno != errno.EEXIST:
-                #         raise
-                raise
-            # with open(filename, "wab") as f:
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc: # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
             chunked_upload_file = {'file':open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
             self.is_valid_chunked_upload(chunked_upload_file)
@@ -211,8 +208,6 @@ class ChunkedUploadView(ChunkedUploadBaseView):
             #     except OSError as exc: # Guard against race condition
             #         if exc.errno != errno.EEXIST:
             #             raise
-            # with open(filename, "wab") as f:
-            # os.makedirs(os.path.dirname(filename))
             chunked_upload_file = {'file': open(filename, "ab")}
             chunked_upload_file['upload_id'] = upload_id
 
@@ -250,8 +245,6 @@ class ChunkedUploadView(ChunkedUploadBaseView):
         # chunked_upload.append_chunk(chunk, chunk_size=chunk_size, save=False)
         chunked_upload_file['file'].write(chunk.read())
         chunked_upload_file['offset'] = chunked_upload_file['file'].tell()
-        print chunk.tell()
-        print chunked_upload_file['file'].tell()
 
         self._save(chunked_upload_file)
 
